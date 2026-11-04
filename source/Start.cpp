@@ -104,7 +104,7 @@ namespace start
 		void StandAtArrival(RE::PlayerCharacter* a_player)
 		{
 			if (home::kHasCocMarker) { return; }
-			a_player->SetPosition(RE::NiPoint3{ home::kArrivalX, home::kArrivalY, home::kArrivalZ });
+			a_player->SetPosition(RE::NiPoint3{ home::kArrivalX, home::kArrivalY, home::kArrivalZ }, true);
 			a_player->SetHeading(home::kArrivalHeading);
 			logger::info("move: stood at the door's arrival point ({:.1f}, {:.1f}, {:.1f})", home::kArrivalX, home::kArrivalY, home::kArrivalZ);
 		}
