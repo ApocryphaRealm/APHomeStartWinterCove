@@ -35,5 +35,5 @@ MIT - the notice is `include/DevBench/DevBenchAPI.LICENSE.txt`, kept with the fi
 ## Records referenced by this mod
 
 None are redistributed. The door, cell and any key, deed or sign the start touches are records in `Winter Cove.esp` (Winter Cove, Nexus 4171,
-by 1xmiha), which must be installed separately and is read by FormID at runtime. The plugin has only `Skyrim.esm` as a
-master; nothing from the home or the base game is copied into it.
+by 1xmiha), which must be installed separately and is read by FormID at runtime. The plugin has `Skyrim.esm` and
+`Winter Cove.esp` as its masters; nothing from the home or the base game is copied into it.

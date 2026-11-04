@@ -1,6 +1,6 @@
 AP Home Start - Winter Cove
 ===========================
-Version 1.0.0
+Version 2.0.0
 
 One of the AP Home Start series. It adds Winter Cove to the "My own Home" card of the menu Alternate Perspective's Messenger offers you in
 the Resting Pilgrim. Choose it and the game begins inside Winter Cove, a cabin near the Skyrim-Cyrodiil border, already yours: the key in your pack. No gold.
@@ -11,11 +11,12 @@ Nothing else is touched. The plugin holds one quest record and edits nothing of 
 
 REQUIREMENTS
 - Alternate Perspective (Nexus 50307)
-- Winter Cove (Nexus 4171), Winter Cove.esp. Without it the option is not offered.
+- Winter Cove (Nexus 4171). Winter Cove.esp is this plugin's master, so it must be installed and load above this plugin.
+  Without it the game stops at load, as with any plugin whose master is missing.
 - SKSE and Address Library
 
 WHAT IS IN THE PACKAGE
-  AP Home Start - Winter Cove.esp        one quest record, nothing else (light-flagged)
+  AP Home Start - Winter Cove.esp        one quest record, nothing else (light-flagged; masters Skyrim.esm and Winter Cove.esp)
   SKSE\Plugins\APHomeStartWinterCove.dll / .pdb           the mod
   SKSE\Plugins\APHomeStartWinterCove.ini                  the settings
   Interface\Translations\APHomeStartWinterCove_*.txt      the menu text in eleven languages

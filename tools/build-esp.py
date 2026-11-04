@@ -9,16 +9,19 @@ reviewable in a diff.
 
 What it contains:
 
-    TES4                             header, one master: Skyrim.esm, light-flagged (ESPFE)
+    TES4                             header, masters: Skyrim.esm and Winter Cove.esp, light-flagged (ESPFE)
     GRUP QUST
-      QUST 0x01000800  APHS_WinterCove   "Winter Cove"
+      QUST 0x02000800  APHS_WinterCove   "Winter Cove"
 
 The quest is deliberately inert - no stages, no aliases, no script. It is not start-game-enabled, so
 nothing happens until Alternate Perspective starts it; the DLL stops it again as soon as the start
 sequence has run.
 
-FormID note: the plugin declares one master, so its own record takes on-disk index 01 and the record
-is 0x01000800. Alternate Perspective is handed "0x800" when the option is added to its menu, because it calls
+Masters: the home's plugin is a master so that this plugin, and so this start, cannot load without the home. Every AP Home
+Start does this. No record here refers to the home; the DLL finds the home's records by plugin name at run time.
+
+FormID note: the plugin declares two masters, so its own record takes on-disk index 02 and the record
+is 0x02000800. Alternate Perspective is handed "0x800" when the option is added to its menu, because it calls
 Game.GetFormFromFile, which takes the FormID without the plugin's index.
 
 Usage:  python build-esp.py [out.esp]
@@ -32,8 +35,11 @@ DESCRIPTION = "AP Home Start - Winter Cove"
 
 FORM_VERSION = 44  # SSE
 
+MASTERS = ["Skyrim.esm", "Winter Cove.esp"]
+OWN_INDEX = len(MASTERS) << 24  # a record with the index one past the masters belongs to this file
+
 QUESTS = [
-    (0x01000800, "APHS_WinterCove", "Winter Cove"),
+    (OWN_INDEX | 0x800, "APHS_WinterCove", "Winter Cove"),
 ]
 
 
@@ -74,8 +80,7 @@ def tes4_header(record_count: int, next_object_id: int) -> bytes:
     body = (sub(b"HEDR", hedr) +
             sub(b"CNAM", AUTHOR.encode("cp1252") + b"\x00") +
             sub(b"SNAM", DESCRIPTION.encode("cp1252") + b"\x00") +
-            sub(b"MAST", b"Skyrim.esm\x00") +
-            sub(b"DATA", struct.pack("<Q", 0)))
+            b"".join(sub(b"MAST", m.encode("cp1252") + b"\x00") + sub(b"DATA", struct.pack("<Q", 0)) for m in MASTERS))
     return record(b"TES4", 0, body, flags=ESL_FLAG)
 
 
