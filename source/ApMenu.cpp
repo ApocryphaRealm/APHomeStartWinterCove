@@ -23,10 +23,14 @@ namespace apmenu
 		std::atomic<bool> g_installed{ false };
 		std::atomic<bool> g_running{ false };
 
-		// How many frames to wait for AP's option array. The menu opens first and the JSON files are then
-		// read asynchronously (LoadVars, one file at a time), so the array is empty for a few frames on a
-		// cold cache; five seconds at 60 fps is generous and costs nothing while it waits.
-		inline constexpr int kMaxPasses = 300;
+		// How many frames to wait for AP to finish reading its files. AP 4.1's MessengerMenu constructor fills
+		// `_options` with its own None and Random cards straight away, then reads the JSON files with LoadVars,
+		// one at a time, and only when the last is read hands the whole array to the list (OptionList.setItems
+		// pushes every entry into mainOptions.entryList). So "the option array is not empty" is true from the
+		// first frame and says nothing (the 2026-11-09 Nexus report: "2 card(s), 1 pass(es)", the "My own Home"
+		// card not yet read, our fallback card added too early). The signal that AP is done is the list's own
+		// entryList being filled. Ten seconds at 60 fps covers a long add-on list on a cold cache.
+		inline constexpr int kMaxPasses = 600;
 
 		RE::GPtr<RE::GFxMovieView> Movie()
 		{
@@ -56,11 +60,15 @@ namespace apmenu
 		{
 			a_movie->CreateObject(&a_out);
 			if (!a_out.IsObject()) { return false; }
-			RE::GFxValue text, mod, id;
+			RE::GFxValue text, mod, id, enabled;
 			a_movie->CreateString(&text, a_text);
 			a_movie->CreateString(&mod, home::kPluginName);
 			id.SetNumber(static_cast<double>(home::kStartQuestLocalID));
-			return a_out.SetMember("text", text) && a_out.SetMember("id", id) && a_out.SetMember("mod", mod);
+			// AP's validateConditions sets enabled = true on every entry it reads; MainListEntry draws an entry
+			// without it at 25% alpha and the list refuses the click ("clickDisabled").
+			enabled.SetBoolean(true);
+			return a_out.SetMember("text", text) && a_out.SetMember("id", id) && a_out.SetMember("mod", mod) &&
+			       a_out.SetMember("enabled", enabled);
 		}
 
 		// Already there? The menu is rebuilt on every open, but a second pass of ours (or a future AP that
@@ -76,10 +84,13 @@ namespace apmenu
 			return false;
 		}
 
-		// The fallback, when AP has no "My own home" card any more: a card of our own. It has to reach BOTH
-		// the array AP keeps and the list the menu has already been given, or it would not be drawn.
-		bool AddOwnCard(RE::GFxMovieView* a_movie, RE::GFxValue& a_options, std::string& a_problem)
+		// The fallback, when AP has no "My own home" card any more: a card of our own. It runs only after AP has
+		// handed its array to the list, so it goes into the list's entryList ONCE and nowhere else - pushing it into
+		// `_options` as well would add it a second time if AP ever handed the array over again (until 2.0.0 the card
+		// went into both before setItems ran, which drew it twice).
+		bool AddOwnCard(RE::GFxMovieView* a_movie, RE::GFxValue& a_list, RE::GFxValue& a_entries, std::string& a_problem)
 		{
+			if (AlreadyInSuboptions(a_entries)) { return true; }   // the same check works on the card list
 			RE::GFxValue card;
 			if (!MakeOurOption(a_movie, card, OwnCardText()))
 			{
@@ -91,24 +102,12 @@ namespace apmenu
 			a_movie->CreateString(&colour, "0x5B6D7A");
 			card.SetMember("description", descr);
 			card.SetMember("color", colour);
-			if (!a_options.PushBack(card))
+			if (!a_entries.PushBack(card))
 			{
-				a_problem = "the option array refused the card";
+				a_problem = "the menu's entry list refused the card";
 				return false;
 			}
-			RE::GFxValue list;
-			if (!a_movie->GetVariable(&list, home::kApListPath) || !list.IsObject())
-			{
-				a_problem = "the card was added to the options but the list itself was not found";
-				return false;
-			}
-			RE::GFxValue entries;
-			if (!list.GetMember("entryList", &entries) || !entries.IsArray() || !entries.PushBack(card))
-			{
-				a_problem = "the card was added to the options but the menu's entry list refused it";
-				return false;
-			}
-			list.Invoke("InvalidateData");
+			a_list.Invoke("InvalidateData");
 			return true;
 		}
 
@@ -209,22 +208,29 @@ namespace apmenu
 				return true;
 			}
 
-			RE::GFxValue options;
-			const bool have = movie->GetVariable(&options, home::kApOptionsPath) && options.IsArray() && options.GetArraySize() > 0;
-			if (!have)
+			// Ready only once AP has read every file and filled the list (see kMaxPasses). The cards in entryList are the
+			// same objects as in `_options`, so a suboption pushed into the Home card here is the one AP reads when the
+			// card is highlighted.
+			RE::GFxValue list, entries;
+			const bool ready = movie->GetVariable(&list, home::kApListPath) && list.IsObject() &&
+			                   list.GetMember("entryList", &entries) && entries.IsArray() && entries.GetArraySize() > 0;
+			if (!ready)
 			{
 				if (a_pass < kMaxPasses) { return false; }   // Drive() posts the next pass
-				r.problem = "Alternate Perspective's option list never appeared - is this another mod's custom menu?";
+				RE::GFxValue options;
+				r.problem = movie->GetVariable(&options, home::kApOptionsPath) && options.IsArray() ?
+				                "Alternate Perspective's menu never finished reading its files" :
+				                "Alternate Perspective's option list never appeared - is this another mod's custom menu?";
 				Finish(r);
 				return true;
 			}
 
 			r.sawMenu = true;
-			r.cards = static_cast<int>(options.GetArraySize());
-			for (std::uint32_t i = 0; i < options.GetArraySize(); ++i)
+			r.cards = static_cast<int>(entries.GetArraySize());
+			for (std::uint32_t i = 0; i < entries.GetArraySize(); ++i)
 			{
 				RE::GFxValue card;
-				if (!options.GetElement(i, &card) || !card.IsObject()) { continue; }
+				if (!entries.GetElement(i, &card) || !card.IsObject()) { continue; }
 				if (MemberString(card, "text") != home::kApHomeCardText) { continue; }
 				RE::GFxValue subs;
 				if (!card.GetMember("suboptions", &subs) || !subs.IsArray())
@@ -259,7 +265,7 @@ namespace apmenu
 				r.problem = std::format("no card named {} among the {} the menu has", home::kApHomeCardText, r.cards);
 			}
 			std::string fallbackProblem;
-			if (AddOwnCard(movie.get(), options, fallbackProblem))
+			if (AddOwnCard(movie.get(), list, entries, fallbackProblem))
 			{
 				r.ownCardAdded = true;
 			}

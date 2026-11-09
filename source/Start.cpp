@@ -296,7 +296,11 @@ namespace start
 		}
 		g_questID = quest->GetFormID();
 		g_signID = home::kSaleSign != 0 ? handler->LookupFormID(home::kSaleSign, home::kHomePlugin) : 0;
-		logger::info("install: the start is quest {:08X} ({}); the sale sign is {:08X}", g_questID, quest->GetFormEditorID(), g_signID);
+		if (home::kSaleSign != 0) {
+			logger::info("install: the start is quest {:08X} ({}); the sale sign is {:08X}", g_questID, quest->GetFormEditorID(), g_signID);
+		} else {
+			logger::info("install: the start is quest {:08X} ({}); the home has no sale sign to remove", g_questID, quest->GetFormEditorID());
+		}
 
 		auto* holder = RE::ScriptEventSourceHolder::GetSingleton();
 		if (!holder)
